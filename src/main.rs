@@ -1,50 +1,72 @@
+
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
 use std::error::Error;
-use rmp3::{RawDecoder,Frame,Sample,MAX_SAMPLES_PER_FRAME};
-use std::fs::File;
-use std::io::{self,Read};
+use rmp3::{RawDecoder, Frame, Sample, MAX_SAMPLES_PER_FRAME};
+use std::str::{from_utf8};
+mod buffer;
+use buffer::AudioBuffer;
+use tokio::io::AsyncReadExt;
 
-fn send_file_byte_by_byte(file_path: &str, audio_buf: &mut AudioBuffer) -> io::Result<()> {
-    // Open the file
-    let mut file = File::open(file_path)?;
-    // Create a buffer to read bytes into
-    let mut buf = [0u8; 1];
-    
-    loop {
-        match file.read_exact(&mut buf){
-            Ok(_) => {
-                println!("Byte read: {}", buf[0]);
-                if audio_buf.size < 4096 {
-                    audio_buf.buf[i] = buf[0];
-                    audio_buf.size += 1;
-                }
-            }
-            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(_) => break,
-        }
-    }
-    Ok(())
-}
-
-fn decode_frame(start: usize, audio_buf: &[u8; 4096], output_buf: &[Sample::default(); MAX_SAMPLES_PER_FRAME]) -> (Frame, usize) {
-    // need to check to see if the audio buffer has data in it
+fn decode_frame<'a>(start: usize, audio_buf: &'a [u8; 4096], mut output_buf: &'a [Sample; MAX_SAMPLES_PER_FRAME]) -> (Frame<'a, 'a>, usize) {
     let mut decoder = RawDecoder::new();
     let (frame, bytes_consumed) = decoder.next(audio_buf, &mut output_buf).unwrap();
     return (frame, bytes_consumed);
 }
 
-fn decode_buffer(audio_buf: &[u8; 4096], output_buf: &[Sample::default(); MAX_SAMPLES_PER_FRAME]){
-    
-}
-fn play_audio(audio_buf: &[u8; 4096]){
-
-}
-fn main() {
-    let mut buf =  [0; 4096];
-    if let Err(err) = send_file_byte_by_byte("/Users/keegan/Msd/Capstone/pico_player_source/sound.mp3", &mut buf) {
-        eprintln!("Error: {:?}", err);
+async fn write_buffer(stream: &mut TcpStream, buf: &mut AudioBuffer) {
+    while !buf.is_empty() {
+        match stream.write_all(buf.get_data()).await {
+            Ok(_) => {
+                get_response(stream).await;
+                buf.next();
+            },
+            Err(e) => println!("Error writing to the stream: {}", e),
+        }
     }
-    let (_frame, bytes_consumed) = decode_frame(&buf);
-    println!("{}", bytes_consumed);
 }
+
+async fn get_response(stream: &mut TcpStream) {
+    loop {
+        let mut buffer = [0u8; 4096];
+        match stream.read(&mut buffer).await {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    println!("Connection closed by peer.");
+                    break;
+                }
+                let response = from_utf8(&buffer[..bytes_read]).unwrap();
+                if response == "continue" {
+                    break;
+                }
+            },
+            Err(e) => {
+                println!("Some error occurred: {}", e);
+                break;
+            }
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    // Connect to a peer
+    let result = TcpStream::connect("192.168.5.165:1234").await;
+    let mut buf = AudioBuffer::new("your_audio_file_path".to_string()).unwrap();
+
+    match result {
+        Ok(mut stream) => {
+            match stream.write_all(b"hello world!").await {
+                Ok(_) => {
+                    println!("Buffer sent successfully!");
+                    get_response(&mut stream).await; // Wait for a 'continue' response from the server
+                },
+                Err(e) => println!("Error writing to the stream: {}", e),
+            }
+        },
+        Err(e) => println!("Failed to connect to the server: {}", e),
+    }
+
+    Ok(())
+}
+
