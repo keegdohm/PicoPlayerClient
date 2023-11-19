@@ -8,9 +8,10 @@ mod buffer;
 use buffer::AudioBuffer;
 use tokio::io::AsyncReadExt;
 
-fn decode_frame<'a>(start: usize, audio_buf: &'a [u8; 4096], mut output_buf: &'a [Sample; MAX_SAMPLES_PER_FRAME]) -> (Frame<'a, 'a>, usize) {
+fn decode_frame<'a>(start: usize, audio_buf: &'a [u8; 4096], output_buf: &'a mut [Sample; MAX_SAMPLES_PER_FRAME]) -> (Frame<'a, 'a>, usize) {
+    
     let mut decoder = RawDecoder::new();
-    let (frame, bytes_consumed) = decoder.next(audio_buf, &output_buf).unwrap();
+    let (frame, bytes_consumed) = decoder.next(audio_buf, output_buf).unwrap();
     return (frame, bytes_consumed);
 }
 
