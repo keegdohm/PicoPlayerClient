@@ -1,73 +1,56 @@
-
+#![warn(clippy::pedantic)]
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
 use std::error::Error;
 use rmp3::{RawDecoder, Frame, Sample, MAX_SAMPLES_PER_FRAME};
 use std::str::{from_utf8};
 mod buffer;
+
 use buffer::AudioBuffer;
 use tokio::io::AsyncReadExt;
+use id3::{Tag, TagLike};
+use std::time::Duration;
+use std::io::Error as OtherError;
 
-fn decode_frame<'a>(start: usize, audio_buf: &'a [u8; 4096], output_buf: &'a mut [Sample; MAX_SAMPLES_PER_FRAME]) -> (Frame<'a, 'a>, usize) {
-    
-    let mut decoder = RawDecoder::new();
-    let (frame, bytes_consumed) = decoder.next(audio_buf, output_buf).unwrap();
-    return (frame, bytes_consumed);
-}
+fn get_metadata(){
+   let tag = Tag::read_from_path("/Users/keegan/Msd/Capstone/pico_player_client/Mr_Blue_Sky-Electric_Light_Orchestra.mp3").unwrap();
+   // Get a bunch of s frames...
+   if let Some(artist) = tag.artist() {
+       println!("artist: {}", artist);
+   }
+   if let Some(title) = tag.title() {
+       println!("title: {}", title);
+   }
+   if let Some(album) = tag.album() {
+       println!("album: {}", album);
+   }
+  // if let Some(duration) = tag.duration(){
+  //     println!("duration: {}",Duration::as_secs(duration));
+  // }
 
-async fn write_buffer(stream: &mut TcpStream, buf: &mut AudioBuffer) {
-    while !buf.is_empty() {
-        match stream.write_all(buf.get_data()).await {
-            Ok(_) => {
-                get_response(stream).await;
-                buf.next();
-            },
-            Err(e) => println!("Error writing to the stream: {}", e),
-        }
-    }
-}
-
-async fn get_response(stream: &mut TcpStream) {
-    loop {
-        let mut buffer = [0u8; 4096];
-        match stream.read(&mut buffer).await {
-            Ok(bytes_read) => {
-                if bytes_read == 0 {
-                    println!("Connection closed by peer.");
-                    break;
-                }
-                let response = from_utf8(&buffer[..bytes_read]).unwrap();
-                if response == "continue" {
-                    break;
-                }
-            },
-            Err(e) => {
-                println!("Some error occurred: {}", e);
-                break;
-            }
-        }
-    }
+   // Get frames before getting their content for more complex tags.
+  // if let Some(artist) = tag.get("TPE1").and_then(|frame| frame.content().text()) {
+  //     println!("artist: {}", artist);
+  // }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Connect to a peer
-    let result = TcpStream::connect("192.168.5.165:1234").await;
-    let mut buf = AudioBuffer::new("your_audio_file_path".to_string()).unwrap();
+   // Connect to a peer
+   let result = TcpStream::connect("192.168.5.165:1234").await;
+   let mut buf = AudioBuffer::new("~/Msd/Capstone/pico_player_client/Mr_Blue_Sky-Electric_Light_Orchestra.mp3".to_string()).unwrap();
 
-    match result {
-        Ok(mut stream) => {
-            match stream.write_all(b"hello world!").await {
-                Ok(_) => {
-                    println!("Buffer sent successfully!");
-                    get_response(&mut stream).await; // Wait for a 'continue' response from the server
-                },
-                Err(e) => println!("Error writing to the stream: {}", e),
-            }
-        },
-        Err(e) => println!("Failed to connect to the server: {}", e),
-    }
+   match result {
+       Ok(mut stream) => {
+           match  buf.transmit(&mut stream).await {
+               Ok(_) => {
+                   println!("Buffer sent successfully!");
+               },
+               Err(e) => println!("Error writing to the stream: {}", e),
+           }
+       },
+       Err(e) => println!("Failed to connect to the server: {}", e),
+   }
 
-    Ok(())
+   Ok(())
 }
-
