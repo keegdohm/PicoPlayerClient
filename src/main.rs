@@ -1,16 +1,16 @@
 #![warn(clippy::pedantic)]
 use tokio::net::TcpStream;
-use tokio::io::AsyncWriteExt;
+
 use std::error::Error;
-use rmp3::{RawDecoder, Frame, Sample, MAX_SAMPLES_PER_FRAME};
-use std::str::{from_utf8};
+
+
 mod buffer;
 
 use buffer::AudioBuffer;
-use tokio::io::AsyncReadExt;
+
 use id3::{Tag, TagLike};
-use std::time::Duration;
-use std::io::Error as OtherError;
+
+
 
 fn get_metadata(){
    let tag = Tag::read_from_path("/Users/keegan/Msd/Capstone/pico_player_client/Mr_Blue_Sky-Electric_Light_Orchestra.mp3").unwrap();
@@ -38,7 +38,7 @@ fn get_metadata(){
 async fn main() -> Result<(), Box<dyn Error>> {
    // Connect to a peer
    let result = TcpStream::connect("192.168.5.165:1234").await;
-   let mut buf = AudioBuffer::new("~/Msd/Capstone/pico_player_client/Mr_Blue_Sky-Electric_Light_Orchestra.mp3".to_string()).unwrap();
+   let mut buf = AudioBuffer::new("/Users/keegan/Msd/Capstone/Mr_Blue_Sky-Electric_Light_Orchestra-trimmed.mp3".to_string()).unwrap();
 
    match result {
        Ok(mut stream) => {

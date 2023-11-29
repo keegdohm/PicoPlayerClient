@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
 extern crate alloc;
-use alloc::vec::Vec;
+
 use std::fs::File;
 use std::io::{self, Read};
 use std::os::unix::prelude::FileExt;
@@ -21,7 +21,8 @@ impl AudioBuffer {
     pub fn new(file_path: String) -> Result<Self, io::Error> {
         let mut file = File::open(&file_path)?;
         let metadata = file.metadata()?;
-        let default_data = [0u8; 4096];
+        let mut default_data = [0u8; 4096];
+        file.read_exact(&mut default_data);
         let default_index = 0;
         let default_length = metadata.len();
         let default_empty = metadata.len() == 0;
@@ -45,7 +46,7 @@ impl AudioBuffer {
 
     pub fn next(&mut self) {
         // Open the file
-        let mut file = self.open().unwrap();
+        let file = self.open().unwrap();
         
         if file.metadata().unwrap().len() - self.index >= 4096 {
             match file.read_exact_at(&mut self.data, self.index) {
@@ -70,7 +71,7 @@ impl AudioBuffer {
 
     fn read_packet(&mut self){
         self.data = [0;4096];
-        let mut file = self.open().unwrap();
+        let file = self.open().unwrap();
         match file.read_at(&mut self.data, self.index){
             Ok(_) => {
             },
@@ -92,11 +93,15 @@ impl AudioBuffer {
     }
 
     pub async fn transmit(&mut self, stream: &mut TcpStream) -> Result<(), io::Error> {
+        let mut counter = 0;
         while !self.is_empty() {
+            println!("writing file to stream");
             match stream.write_all(self.get_data()).await {
                 Ok(_) => {
+                    println!("Count = {}", counter);
                     Self::get_response(stream).await; // Propagate errors from get_response
                     self.next();
+                    counter += 1;
                 },
                 Err(e) => {
                     println!("Error writing to the stream: {}", e);
