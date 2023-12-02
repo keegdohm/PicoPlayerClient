@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic)]
 use tokio::net::TcpStream;
-
+use tokio::io::AsyncWriteExt;
 use std::error::Error;
 
 
@@ -34,23 +34,26 @@ fn get_metadata(){
   // }
 }
 
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
    // Connect to a peer
-   let result = TcpStream::connect("192.168.5.165:1234").await;
-   let mut buf = AudioBuffer::new("/Users/keegan/Msd/Capstone/Mr_Blue_Sky-Electric_Light_Orchestra-trimmed.mp3".to_string()).unwrap();
-
-   match result {
-       Ok(mut stream) => {
-           match  buf.transmit(&mut stream).await {
-               Ok(_) => {
-                   println!("Buffer sent successfully!");
-               },
-               Err(e) => println!("Error writing to the stream: {}", e),
-           }
-       },
-       Err(e) => println!("Failed to connect to the server: {}", e),
-   }
-
-   Ok(())
+    let result = TcpStream::connect("192.168.5.166:1234").await;
+    let mut buf = AudioBuffer::new("/Users/keegan/Msd/Capstone/Mr_Blue_Sky-Electric_Light_Orchestra-trimmed.mp3".to_string()).unwrap();
+        match result {
+            Ok(mut stream) => {
+                // let mut buf = [0u8;4097];
+                // buf[4096] = 1;
+                // let buf:[u8;6] = [0,1,2,3,4,5];
+                match  buf.transmit(&mut stream).await {
+                // match stream.write_all(&buf).await{
+                    Ok(_) => {
+                        println!("Buffer sent successfully!");
+                    },
+                    Err(e) => println!("Error writing to the stream: {}", e),
+                }
+            },
+            Err(e) => println!("Failed to connect to the server: {}", e),
+        }
+    Ok(())
 }

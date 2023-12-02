@@ -12,9 +12,7 @@ pub struct AudioBuffer {
     data: [u8; 4096],
     index: u64,
     path: String,
-    length: u64,
     empty: bool,
-    bytes_sent: u64,
 }
 
 impl AudioBuffer {
@@ -22,19 +20,15 @@ impl AudioBuffer {
         let mut file = File::open(&file_path)?;
         let metadata = file.metadata()?;
         let mut default_data = [0u8; 4096];
-        file.read_exact(&mut default_data);
+        let _ = file.read_exact(&mut default_data);
         let default_index = 0;
-        let default_length = metadata.len();
         let default_empty = metadata.len() == 0;
-        let default_bytes_sent = 0;
 
         Ok(Self {
             data: default_data,
             path: file_path,
             index: default_index,
-            length: default_length,
             empty: default_empty,
-            bytes_sent: default_bytes_sent,
         })
     }
     pub fn open(&mut self) -> Option<File> {
@@ -46,13 +40,21 @@ impl AudioBuffer {
 
     pub fn next(&mut self) {
         // Open the file
-        let file = self.open().unwrap();
-        
+        let file = self.open().unwrap(); 
         if file.metadata().unwrap().len() - self.index >= 4096 {
-            match file.read_exact_at(&mut self.data, self.index) {
+            self.read_packet(file);
+
+        } else {
+            self.read_remaining();
+            self.empty = true;
+        }
+    }
+
+    pub fn read_packet(&mut self, file: File){
+        match file.read_exact_at(&mut self.data, self.index) {
                 Ok(_) => {
-                    println!("Byte read: {}", self.data[0]);
                     self.index += self.data.len() as u64;
+                    println!("Read to Byte: {}", self.index);
                 }
                 Err(err) => match err.kind() {
                     io::ErrorKind::UnexpectedEof => {
@@ -63,13 +65,9 @@ impl AudioBuffer {
                     }
                 },
             }
-        } else {
-            self.read_packet();
-            self.empty = true;
-        }
-    }
 
-    fn read_packet(&mut self){
+    }
+    fn read_remaining(&mut self){
         self.data = [0;4096];
         let file = self.open().unwrap();
         match file.read_at(&mut self.data, self.index){
@@ -99,7 +97,6 @@ impl AudioBuffer {
             match stream.write_all(self.get_data()).await {
                 Ok(_) => {
                     println!("Count = {}", counter);
-                    Self::get_response(stream).await; // Propagate errors from get_response
                     self.next();
                     counter += 1;
                 },
@@ -113,30 +110,30 @@ impl AudioBuffer {
     } 
 
 
-    async fn get_response(stream: &mut TcpStream) {
-        loop {
-            let mut buffer = [0u8; 4096];
-            match stream.read(&mut buffer).await {
-                Ok(bytes_read) => {
-                    if bytes_read == 0 {
-                        println!("Connection closed by peer.");
-                        break;
-                    }
-                    let response = from_utf8(&buffer[..bytes_read]).unwrap();
-                    if response == "continue" {
-                        break;
-                    }
-                    else {
-                        println!("{}", response);
-                    }
-                },
-                Err(e) => {
-                    println!("Some error occurred: {}", e);
-                    break;
-                }
-            }
-        }
-    }
+    // async fn get_response(stream: &mut TcpStream) {
+    //     loop {
+    //         let mut buffer = [0u8; 4096];
+    //         match stream.read(&mut buffer).await {
+    //             Ok(bytes_read) => {
+    //                 if bytes_read == 0 {
+    //                     println!("Connection closed by peer.");
+    //                     break;
+    //                 }
+    //                 let response = from_utf8(&buffer[..bytes_read]).unwrap();
+    //                 if response == "continue" {
+    //                     break;
+    //                 }
+    //                 else {
+    //                     println!("{}", response);
+    //                 }
+    //             },
+    //             Err(e) => {
+    //                 println!("Some error occurred: {}", e);
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
 
 }
 
