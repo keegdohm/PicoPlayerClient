@@ -38,7 +38,7 @@ fn get_metadata(){
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
    // Connect to a peer
-    let result = TcpStream::connect("192.168.5.166:1234").await;
+    let result = TcpStream::connect("192.168.86.33:1234").await;
     let mut buf = AudioBuffer::new("/Users/keegan/Msd/Capstone/Mr_Blue_Sky-Electric_Light_Orchestra-trimmed.mp3".to_string()).unwrap();
         match result {
             Ok(mut stream) => {
